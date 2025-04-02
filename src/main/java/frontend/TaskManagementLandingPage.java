@@ -4,258 +4,182 @@ import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
+
+import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TaskManagementLandingPage extends Application {
-    private Stage primaryStage;
+    private String currentUsername;
     private StackPane contentPane;
-    private String currentUser;
-
-    public TaskManagementLandingPage(String username) {
-        this.currentUser = username;
-    }
+    private VBox notificationPane;
 
     public TaskManagementLandingPage() {
-        this.currentUser = "Default User";
+        this.currentUsername = "DefaultUser";
+    }
+
+    public TaskManagementLandingPage(String username) {
+        this.currentUsername = username;
     }
 
     @Override
-    public void start(Stage stage) {
-        this.primaryStage = stage;
-
+    public void start(Stage primaryStage) {
         BorderPane root = new BorderPane();
-        root.setLeft(createSideMenu());
+        root.setLeft(createSideMenu(primaryStage));
         contentPane = new StackPane();
-        contentPane.setStyle("-fx-background-color: white;");
-        root.setCenter(contentPane);
+
+        notificationPane = new VBox(5);
+        notificationPane.setPadding(new Insets(10));
+        notificationPane.setStyle("-fx-background-color: #f0f0f0;");
+        updateNotifications();
+
+        VBox mainContent = new VBox(10);
+        mainContent.getChildren().addAll(notificationPane, contentPane);
+        root.setCenter(mainContent);
 
         updateContent("Home");
 
-        Scene mainScene = new Scene(root, 800, 600);
-        primaryStage.setScene(mainScene);
-        primaryStage.setTitle("Task Management System");
+        Scene scene = new Scene(root, 800, 600);
+        primaryStage.setTitle("TMS - Employee");
+        primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    private VBox createSideMenu() {
+    private VBox createSideMenu(Stage primaryStage) {
         VBox sideMenu = new VBox(10);
         sideMenu.setPadding(new Insets(20));
         sideMenu.setPrefWidth(200);
         sideMenu.setStyle("-fx-background-color: #283034;");
 
         String[] menuItems = {"Home", "My Tasks", "My Profile", "Logout"};
-
         for (String item : menuItems) {
-            Button menuButton = new Button(item);
-            styleMenuButton(menuButton);
-
-            menuButton.setOnAction(e -> {
+            Button button = new Button(item);
+            styleButton(button);
+            button.setOnAction(e -> {
                 if (item.equals("Logout")) {
-                    showLogoutDialog();
+                    primaryStage.close();
+                    new TaskManagerLogin().start(new Stage());
+                } else if (item.equals("My Tasks")) {
+                    new MyTasksPage(currentUsername).start(new Stage());
                 } else {
                     updateContent(item);
                 }
             });
-
-            sideMenu.getChildren().add(menuButton);
+            sideMenu.getChildren().add(button);
         }
-
         return sideMenu;
     }
 
-    private void styleMenuButton(Button button) {
+    private void updateContent(String page) {
+        contentPane.getChildren().clear();
+        if (page.equals("Home")) {
+            VBox homeContent = new VBox(20);
+            homeContent.setAlignment(Pos.CENTER);
+            homeContent.setPadding(new Insets(20));
+
+            Label welcomeLabel = new Label("Welcome, " + currentUsername);
+            welcomeLabel.setFont(Font.font("Arial", 24));
+
+            // Fetch tasks for the current user
+            List<Task> tasks = TaskData.getTasksByUser(currentUsername);
+            int total = tasks.size();
+            int pending = (int) tasks.stream().filter(t -> !t.getStatus().equals("Completed")).count();
+            int completed = total - pending;
+
+            // Text-based statistics
+            HBox statsBox = new HBox(20);
+            statsBox.setAlignment(Pos.CENTER);
+            statsBox.getChildren().addAll(
+                    new Label("My Tasks: " + total),
+                    new Label("Pending: " + pending),
+                    new Label("Completed: " + completed)
+            );
+
+            // Pie Chart: Task Status Distribution
+            PieChart statusChart = new PieChart();
+            statusChart.setTitle("My Task Status Distribution");
+            Map<String, Long> statusCounts = tasks.stream()
+                    .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+            statusCounts.forEach((status, count) ->
+                    statusChart.getData().add(new PieChart.Data(status, count)));
+            statusChart.setPrefWidth(400);
+            statusChart.setPrefHeight(300);
+
+            // Bar Chart: Task Priority Distribution
+            CategoryAxis xAxis = new CategoryAxis();
+            xAxis.setLabel("Priority");
+            NumberAxis yAxis = new NumberAxis();
+            yAxis.setLabel("Number of Tasks");
+            BarChart<String, Number> priorityChart = new BarChart<>(xAxis, yAxis);
+            priorityChart.setTitle("My Task Priority Distribution");
+            XYChart.Series<String, Number> series = new XYChart.Series<>();
+            series.setName("Tasks");
+            Map<String, Long> priorityCounts = tasks.stream()
+                    .collect(Collectors.groupingBy(Task::getPriority, Collectors.counting()));
+            priorityCounts.forEach((priority, count) ->
+                    series.getData().add(new XYChart.Data<>(priority, count)));
+            priorityChart.getData().add(series);
+            priorityChart.setPrefWidth(400);
+            priorityChart.setPrefHeight(300);
+
+            // Layout for charts
+            HBox chartsBox = new HBox(20);
+            chartsBox.setAlignment(Pos.CENTER);
+            chartsBox.getChildren().addAll(statusChart, priorityChart);
+
+            homeContent.getChildren().addAll(welcomeLabel, statsBox, chartsBox);
+            contentPane.getChildren().add(homeContent);
+        } else if (page.equals("My Profile")) {
+            contentPane.getChildren().add(new MyProfilePage(currentUsername, "Team Member"));
+        }
+    }
+
+    private void updateNotifications() {
+        notificationPane.getChildren().clear();
+        List<Notification> notifications = TaskData.getNotifications(currentUsername);
+        if (notifications.isEmpty()) {
+            notificationPane.getChildren().add(new Label("No new notifications."));
+            return;
+        }
+
+        for (Notification notification : notifications) {
+            Label notificationLabel = new Label(String.format("%s (Received: %s)",
+                    notification.getMessage(), notification.getCreatedAt()));
+            notificationLabel.setStyle("-fx-text-fill: #d32f2f;");
+            notificationPane.getChildren().add(notificationLabel);
+        }
+
+        Button markAsReadButton = new Button("Mark as Read");
+        styleButton(markAsReadButton);
+        markAsReadButton.setOnAction(e -> {
+            try {
+                TaskData.markNotificationsAsRead(currentUsername);
+                updateNotifications();
+            } catch (SQLException ex) {
+                showAlert("Error", "Failed to mark notifications as read: " + ex.getMessage());
+            }
+        });
+        notificationPane.getChildren().add(markAsReadButton);
+    }
+
+    private void styleButton(Button button) {
         button.setPrefWidth(160);
-        button.setPrefHeight(40);
-        button.setFont(Font.font("Arial", 14));
         button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;");
         button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #303f9f; -fx-text-fill: white;"));
         button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;"));
     }
 
-    private void styleActionButton(Button button) {
-        button.setPrefWidth(150);
-        button.setPrefHeight(40);
-        button.setFont(Font.font("Arial", 14));
-        button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #45a049; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;"));
-    }
-
-    private void updateContent(String page) {
-        contentPane.getChildren().clear();
-        switch (page) {
-            case "Home":
-                contentPane.getChildren().add(createHomeContent());
-                break;
-            case "My Tasks":
-                contentPane.getChildren().add(createMyTasksContent());
-                break;
-            case "My Profile":
-                contentPane.getChildren().add(createMyProfileContent());
-                break;
-        }
-    }
-
-    private VBox createHomeContent() {
-        VBox homeContent = new VBox(20);
-        homeContent.setPadding(new Insets(20));
-        homeContent.setAlignment(Pos.CENTER);
-
-        Label welcomeLabel = new Label("Welcome, " + currentUser);
-        welcomeLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        welcomeLabel.setTextFill(Color.DARKBLUE);
-
-        Label summaryLabel = new Label("Here’s a quick overview of your tasks:");
-        summaryLabel.setFont(Font.font("Arial", 16));
-        summaryLabel.setTextFill(Color.DARKGRAY);
-
-        VBox statsBox = new VBox(10);
-        statsBox.setAlignment(Pos.CENTER);
-
-        // Get the tasks assigned to the current user
-        List<TaskData.Task> userTasks = TaskData.getTaskList().stream()
-                .filter(t -> t.getAssignedTo().equals(currentUser))
-                .toList();
-
-        long totalTasksCount = userTasks.size();
-        long pendingTasksCount = userTasks.stream().filter(t -> !t.getStatus().equals("Completed")).count();
-        long completedTasksCount = userTasks.stream().filter(t -> t.getStatus().equals("Completed")).count();
-
-        Label totalTasks = new Label("Total Tasks: " + totalTasksCount);
-        Label pendingTasks = new Label("Pending Tasks: " + pendingTasksCount);
-        Label completedTasks = new Label("Completed Tasks: " + completedTasksCount);
-
-        totalTasks.setFont(Font.font("Arial", 14));
-        totalTasks.setTextFill(Color.DARKGRAY);
-        pendingTasks.setFont(Font.font("Arial", 14));
-        pendingTasks.setTextFill(Color.DARKGRAY);
-        completedTasks.setFont(Font.font("Arial", 14));
-        completedTasks.setTextFill(Color.DARKGRAY);
-        statsBox.getChildren().addAll(totalTasks, pendingTasks, completedTasks);
-
-        Button viewTasksButton = new Button("View My Tasks");
-        styleActionButton(viewTasksButton);
-        viewTasksButton.setOnAction(e -> updateContent("My Tasks"));
-
-        homeContent.getChildren().addAll(welcomeLabel, summaryLabel, statsBox, viewTasksButton);
-        return homeContent;
-    }
-
-
-    private VBox createMyTasksContent() {
-        VBox tasksContent = new VBox(20);
-        tasksContent.setPadding(new Insets(20));
-        tasksContent.setAlignment(Pos.CENTER);
-
-        Label titleLabel = new Label("My Tasks");
-        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        titleLabel.setTextFill(Color.DARKBLUE);
-
-        ScrollPane scrollPane = new ScrollPane();
-        VBox taskListDisplay = new VBox(10);
-        scrollPane.setContent(taskListDisplay);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(400);
-
-        // Debugging: Print currentUser value
-        System.out.println("Current User: " + currentUser);
-
-        List<TaskData.Task> userTasks = TaskData.getTaskList().stream()
-                .filter(task -> {
-                    boolean assigned = task.getAssignedTo().equals(currentUser);
-                    System.out.println("Task: " + task.getTitle() + ", Assigned To: " + task.getAssignedTo() + ", Matches User: " + assigned);  // Debugging
-                    return assigned;
-                })
-                .toList();
-
-        for (TaskData.Task task : userTasks) {
-            HBox taskBox = new HBox(10);
-            taskBox.setPadding(new Insets(10));
-            taskBox.setStyle("-fx-border-color: #ccc; -fx-border-width: 1;");
-
-            Label taskLabel = new Label(task.getTitle() + " - " + task.getStatus() + " - Due: " + task.getDeadline());
-            taskLabel.setFont(Font.font("Arial", 14));
-
-            Button viewButton = new Button("View");
-            viewButton.setPrefWidth(80);
-            viewButton.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
-            viewButton.setOnAction(e -> showAlert("Task Details",
-                    "Title: " + task.getTitle() + "\nDescription: " + task.getDescription() + "\nStatus: " + task.getStatus()));
-
-            taskBox.getChildren().addAll(taskLabel, viewButton);
-            taskListDisplay.getChildren().add(taskBox);
-        }
-
-        tasksContent.getChildren().addAll(titleLabel, scrollPane);
-        return tasksContent;
-    }
-
-
-    private VBox createMyProfileContent() {
-        VBox profileContent = new VBox(20);
-        profileContent.setPadding(new Insets(20));
-        profileContent.setAlignment(Pos.CENTER);
-
-        Label titleLabel = new Label("My Profile");
-        titleLabel.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        titleLabel.setTextFill(Color.DARKBLUE);
-
-        VBox detailsBox = new VBox(15);
-        detailsBox.setAlignment(Pos.CENTER_LEFT);
-        Label nameLabel = new Label("Name: " + currentUser);
-        Label roleLabel = new Label("Role: Team Member");
-        nameLabel.setFont(Font.font("Arial", 16));
-        nameLabel.setTextFill(Color.DARKGRAY);
-        roleLabel.setFont(Font.font("Arial", 16));
-        roleLabel.setTextFill(Color.DARKGRAY);
-        detailsBox.getChildren().addAll(nameLabel, roleLabel);
-
-        Button editButton = new Button("Edit Profile");
-        styleActionButton(editButton);
-        editButton.setOnAction(e -> showAlert("Edit Profile", "Edit profile functionality to be implemented."));
-
-        profileContent.getChildren().addAll(titleLabel, detailsBox, editButton);
-        return profileContent;
-    }
-
     private void showAlert(String title, String message) {
-        Stage alert = new Stage();
-        VBox alertPane = new VBox(20);
-        alertPane.setAlignment(Pos.CENTER);
-        Label msgLabel = new Label(message);
-        Button okButton = new Button("OK");
-        okButton.setOnAction(e -> alert.close());
-        alertPane.getChildren().addAll(msgLabel, okButton);
-        Scene alertScene = new Scene(alertPane, 250, 150);
-        alert.setScene(alertScene);
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
-        alert.show();
-    }
-
-    private void showLogoutDialog() {
-        Stage dialog = new Stage();
-        VBox dialogPane = new VBox(20);
-        dialogPane.setAlignment(Pos.CENTER);
-        Label message = new Label("Are you sure you want to logout?");
-        Button yesButton = new Button("Yes");
-        Button noButton = new Button("No");
-
-        yesButton.setOnAction(e -> {
-            dialog.close();
-            primaryStage.close();
-        });
-        noButton.setOnAction(e -> dialog.close());
-
-        dialogPane.getChildren().addAll(message, yesButton, noButton);
-        Scene dialogScene = new Scene(dialogPane, 300, 150);
-        dialog.setScene(dialogScene);
-        dialog.show();
+        alert.setContentText(message);
+        alert.showAndWait();
     }
 
     public static void main(String[] args) {

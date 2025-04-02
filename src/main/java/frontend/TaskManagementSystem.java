@@ -4,53 +4,34 @@ import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
-import java.sql.*;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TaskManagementSystem extends Application {
-
+    private String currentUsername;
     private StackPane contentPane;
-    private String currentUserRole = "Manager"; // Can be "Manager" or "Employee"
-    private String currentUsername = "john.doe"; // Example username - REPLACE THIS!
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/TaskManagementDB";
-    private static final String DB_USER = "root";
-    private static final String DB_PASSWORD = "zeenunew100"; // Replace with your actual password
 
-    public TaskManagementSystem() {
-        // Required no-argument constructor for JavaFX
-    }
-
-    public TaskManagementSystem(String username, String selectedRole) {
-        this.currentUsername = username; // Initialize currentUsername
-        this.currentUserRole = selectedRole; // Initialize currentUserRole
+    public TaskManagementSystem(String username) {
+        this.currentUsername = username;
     }
 
     @Override
     public void start(Stage primaryStage) {
-        // Main layout
         BorderPane root = new BorderPane();
-
-        // Create side menu
-        VBox sideMenu = createSideMenu(primaryStage);
-
-        // Create content area
+        root.setLeft(createSideMenu(primaryStage));
         contentPane = new StackPane();
-        contentPane.setStyle("-fx-background-color: white;");
-        updateContent("Home", primaryStage);
-
-        // Set up the layout
-        root.setLeft(sideMenu);
+        updateContent("Home");
         root.setCenter(contentPane);
 
-        // Create and configure scene
         Scene scene = new Scene(root, 800, 600);
-        primaryStage.setTitle("Task Management System");
+        primaryStage.setTitle("TMS - Manager");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
@@ -61,169 +42,94 @@ public class TaskManagementSystem extends Application {
         sideMenu.setPrefWidth(200);
         sideMenu.setStyle("-fx-background-color: #283034;");
 
-        String[] menuItems = {"Home", "My Profile", "Logout"};
-
-        // Create "Open All Tasks" Button
-        Button allTasksButton = new Button("All Tasks");
-        styleMenuButton(allTasksButton);
-        allTasksButton.setOnAction(e -> {
-            AllTasksPage allTasksPage = new AllTasksPage(currentUserRole);
-            Stage allTasksStage = new Stage(); // Create a new stage
-            allTasksStage.setOnCloseRequest(event -> {
-                // Refresh tasks in home
-                updateContent("Home", primaryStage);
-            });
-            allTasksPage.start(allTasksStage); // Start the AllTasksPage GUI in a new window
-        });
-        sideMenu.getChildren().add(allTasksButton);
-
+        String[] menuItems = {"Home", "All Tasks", "My Profile", "Logout"};
         for (String item : menuItems) {
-            Button menuButton = new Button(item);
-            styleMenuButton(menuButton);
-
-            menuButton.setOnAction(e -> {
+            Button button = new Button(item);
+            styleButton(button);
+            button.setOnAction(e -> {
                 if (item.equals("Logout")) {
-                    showLogoutDialog(primaryStage);
+                    primaryStage.close();
+                    new TaskManagerLogin().start(new Stage());
+                } else if (item.equals("All Tasks")) {
+                    new AllTasksPage("Project Manager", currentUsername).start(new Stage());
                 } else {
-                    updateContent(item, primaryStage);
+                    updateContent(item);
                 }
             });
-
-            sideMenu.getChildren().add(menuButton);
+            sideMenu.getChildren().add(button);
         }
-
         return sideMenu;
     }
 
-    private void styleMenuButton(Button button) {
-        button.setPrefWidth(160);
-        button.setPrefHeight(40);
-        button.setFont(Font.font("Arial", 14));
-        button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;");
-
-        button.setOnMouseEntered(e ->
-                button.setStyle("-fx-background-color: #303f9f; -fx-text-fill: white;")
-        );
-        button.setOnMouseExited(e ->
-                button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;")
-        );
-    }
-
-    public void updateContent(String page, Stage primaryStage) {
+    private void updateContent(String page) {
         contentPane.getChildren().clear();
-
         if (page.equals("Home")) {
-            createHomePageContent();
+            VBox homeContent = new VBox(20);
+            homeContent.setAlignment(Pos.CENTER);
+            homeContent.setPadding(new Insets(20));
+
+            Label welcomeLabel = new Label("Welcome, " + currentUsername);
+            welcomeLabel.setFont(Font.font("Arial", 24));
+
+            // Fetch all tasks for statistics
+            List<Task> tasks = TaskData.getAllTasks();
+            int total = tasks.size();
+            int pending = (int) tasks.stream().filter(t -> !t.getStatus().equals("Completed")).count();
+            int completed = total - pending;
+
+            // Text-based statistics
+            HBox statsBox = new HBox(20);
+            statsBox.setAlignment(Pos.CENTER);
+            statsBox.getChildren().addAll(
+                    new Label("Total Tasks: " + total),
+                    new Label("Pending Tasks: " + pending),
+                    new Label("Completed Tasks: " + completed)
+            );
+
+            // Pie Chart: Task Status Distribution
+            PieChart statusChart = new PieChart();
+            statusChart.setTitle("Task Status Distribution");
+            Map<String, Long> statusCounts = tasks.stream()
+                    .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
+            statusCounts.forEach((status, count) ->
+                    statusChart.getData().add(new PieChart.Data(status, count)));
+            statusChart.setPrefWidth(400);
+            statusChart.setPrefHeight(300);
+
+            // Bar Chart: Task Priority Distribution
+            CategoryAxis xAxis = new CategoryAxis();
+            xAxis.setLabel("Priority");
+            NumberAxis yAxis = new NumberAxis();
+            yAxis.setLabel("Number of Tasks");
+            BarChart<String, Number> priorityChart = new BarChart<>(xAxis, yAxis);
+            priorityChart.setTitle("Task Priority Distribution");
+            XYChart.Series<String, Number> series = new XYChart.Series<>();
+            series.setName("Tasks");
+            Map<String, Long> priorityCounts = tasks.stream()
+                    .collect(Collectors.groupingBy(Task::getPriority, Collectors.counting()));
+            priorityCounts.forEach((priority, count) ->
+                    series.getData().add(new XYChart.Data<>(priority, count)));
+            priorityChart.getData().add(series);
+            priorityChart.setPrefWidth(400);
+            priorityChart.setPrefHeight(300);
+
+            // Layout for charts
+            HBox chartsBox = new HBox(20);
+            chartsBox.setAlignment(Pos.CENTER);
+            chartsBox.getChildren().addAll(statusChart, priorityChart);
+
+            homeContent.getChildren().addAll(welcomeLabel, statsBox, chartsBox);
+            contentPane.getChildren().add(homeContent);
         } else if (page.equals("My Profile")) {
-            MyProfilePage myProfilePage = new MyProfilePage(currentUsername, currentUserRole); //create a variable for primary stage
-            contentPane.getChildren().add(myProfilePage);
-        } else {
-            Label contentLabel = new Label("Welcome to " + page + " Page");
-            contentLabel.setFont(Font.font("Arial", 20));
-            contentPane.getChildren().add(contentLabel);
+            contentPane.getChildren().add(new MyProfilePage(currentUsername, "Project Manager"));
         }
     }
 
-    private void createHomePageContent() {
-        List<AllTasksPage.Task> taskList = loadTasksFromDatabase();
-
-        // Calculate task counts
-        int totalTasks = taskList.size();
-        int pendingTasks = (int) taskList.stream().filter(task -> task.status.equals("To-Do") || task.status.equals("In Progress")).count();
-        int completedTasks = (int) taskList.stream().filter(task -> task.status.equals("Completed")).count();
-
-        // Create VBox to display task information in the content area
-        VBox homeContent = new VBox(10);
-        homeContent.setAlignment(Pos.CENTER);
-        homeContent.setPadding(new Insets(20));
-
-        Label welcomeLabel = new Label("Welcome, " + currentUsername);  // Display username
-        welcomeLabel.setFont(Font.font("Arial", 24));
-
-        Label totalLabel = new Label("Total Tasks: " + totalTasks);
-        totalLabel.setFont(Font.font("Arial", 14));
-
-        Label pendingLabel = new Label("Pending Tasks: " + pendingTasks);
-        pendingLabel.setFont(Font.font("Arial", 14));
-
-        Label completedLabel = new Label("Completed Tasks: " + completedTasks);
-        completedLabel.setFont(Font.font("Arial", 14));
-
-        homeContent.getChildren().addAll(welcomeLabel, totalLabel, pendingLabel, completedLabel);
-        contentPane.getChildren().add(homeContent);
-    }
-
-    private List<AllTasksPage.Task> loadTasksFromDatabase() {
-        List<AllTasksPage.Task> taskList = new ArrayList<>(); // Clear existing tasks
-        try (Connection conn = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM tasks")) {
-
-            while (rs.next()) {
-                int id = rs.getInt("id");
-                String title = rs.getString("title");
-                String description = rs.getString("description");
-                String status = rs.getString("status");
-                String priority = rs.getString("priority");
-                String deadline = rs.getString("deadline");
-                String assignedTo = rs.getString("assigned_to");
-
-                taskList.add(new AllTasksPage.Task(id, title, description, status, priority, deadline, assignedTo));
-            }
-        } catch (SQLException e) {
-            System.err.println("Error loading tasks from database: " + e.getMessage());
-            e.printStackTrace();
-            // Handle the exception appropriately, e.g., show an alert to the user
-        }
-        return taskList;
-    }
-
-    private void showLogoutDialog(Stage primaryStage) {
-        Stage dialog = new Stage();
-        VBox dialogPane = new VBox(20);
-        dialogPane.setAlignment(Pos.CENTER);
-        Label message = new Label("Are you sure you want to logout?");
-        Button yesButton = new Button("Yes");
-        Button noButton = new Button("No");
-
-        yesButton.setOnAction(e -> {
-            dialog.close();
-            primaryStage.close();
-        });
-
-        noButton.setOnAction(e -> dialog.close());
-
-        dialogPane.getChildren().addAll(message, yesButton, noButton);
-        Scene dialogScene = new Scene(dialogPane, 300, 150);
-        dialog.setScene(dialogScene);
-        dialog.show();
-    }
-
-    private void styleActionButton(Button button) {
-        button.setPrefWidth(200);
-        button.setPrefHeight(40);
-        button.setFont(Font.font("Arial", 14));
-        button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-
-        button.setOnMouseEntered(e ->
-                button.setStyle("-fx-background-color: #45a049; -fx-text-fill: white;")
-        );
-        button.setOnMouseExited(e ->
-                button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;")
-        );
-    }
-
-    private void styleSmallButton(Button button) {
-        button.setPrefWidth(80);
-        button.setFont(Font.font("Arial", 12));
-        button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
-
-        button.setOnMouseEntered(e ->
-                button.setStyle("-fx-background-color: #1976D2; -fx-text-fill: white;")
-        );
-        button.setOnMouseExited(e ->
-                button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;")
-        );
+    private void styleButton(Button button) {
+        button.setPrefWidth(160);
+        button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #303f9f; -fx-text-fill: white;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;"));
     }
 
     public static void main(String[] args) {
