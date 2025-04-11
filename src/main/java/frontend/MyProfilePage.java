@@ -7,7 +7,6 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 
@@ -22,7 +21,7 @@ public class MyProfilePage extends VBox {
     private String role;
     private Label messageLabel;
     private ImageView profileImageView;
-    private String profilePicturePath; // Store the file path of the uploaded image
+    private String profilePicturePath;
 
     public MyProfilePage(String username, String role) {
         this.username = username;
@@ -30,14 +29,12 @@ public class MyProfilePage extends VBox {
         setSpacing(15);
         setPadding(new Insets(20));
         setAlignment(Pos.CENTER);
-        setStyle("-fx-background-color: #f5f5f5;");
+        setStyle("-fx-background-color: #1C2526;");
 
-        // Card-like container for profile details with drop shadow
         VBox profileCard = new VBox(10);
         profileCard.setPadding(new Insets(15));
-        profileCard.setStyle("-fx-background-color: white; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-background-radius: 5; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 2);");
+        profileCard.setStyle("-fx-background-color: #283034; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 10, 0, 0, 2);");
 
-        // Profile picture
         profileImageView = new ImageView();
         profileImageView.setFitWidth(100);
         profileImageView.setFitHeight(100);
@@ -46,76 +43,83 @@ public class MyProfilePage extends VBox {
             try {
                 profileImageView.setImage(new Image(new File(profilePicturePath).toURI().toString()));
             } catch (Exception e) {
-                profileImageView.setImage(new Image("file:default_profile.png", true)); // Fallback to default
+                profileImageView.setImage(new Image("file:default_profile.png", true));
             }
         } else {
-            profileImageView.setImage(new Image("file:default_profile.png", true)); // Placeholder image
+            profileImageView.setImage(new Image("file:default_profile.png", true));
         }
 
         Button uploadImageButton = new Button("Upload Profile Picture");
-        styleButton(uploadImageButton);
+        stylePrimaryButton(uploadImageButton);
         uploadImageButton.setTooltip(new Tooltip("Upload a new profile picture (PNG, JPG)"));
         uploadImageButton.setOnAction(e -> uploadProfilePicture());
 
-        // Fetch current user details
         String[] userDetails = fetchUserDetails();
         String fullName = userDetails[0];
         String email = userDetails[1];
 
-        // Profile details
         Label titleLabel = new Label("My Profile");
-        titleLabel.setFont(Font.font("Arial", 20));
+        styleLabel(titleLabel, true);
 
         Label roleLabel = new Label("Role: " + role);
-        roleLabel.setStyle("-fx-font-size: 14;");
+        styleLabel(roleLabel, false);
 
+        Label fullNameLabel = new Label("Full Name:");
+        styleLabel(fullNameLabel, false);
         TextField fullNameField = new TextField(fullName);
         fullNameField.setPromptText("Full Name");
         fullNameField.setTooltip(new Tooltip("Enter your full name"));
+        styleTextField(fullNameField);
+
+        Label emailLabel = new Label("Email:");
+        styleLabel(emailLabel, false);
         TextField emailField = new TextField(email);
         emailField.setPromptText("Email");
         emailField.setTooltip(new Tooltip("Enter your email address"));
+        styleTextField(emailField);
+
+        Label passwordLabel = new Label("Password:");
+        styleLabel(passwordLabel, false);
         PasswordField passwordField = new PasswordField();
         passwordField.setPromptText("New Password (leave blank to keep current)");
         passwordField.setTooltip(new Tooltip("Enter a new password (minimum 8 characters)"));
+        styleTextField(passwordField);
 
-        // Real-time email validation
         emailField.textProperty().addListener((obs, oldValue, newValue) -> {
             if (!newValue.isEmpty() && !newValue.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {
-                emailField.setStyle("-fx-border-color: red;");
+                emailField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #FF6F61; -fx-border-radius: 5; -fx-background-radius: 5;");
             } else {
-                emailField.setStyle("-fx-border-color: #ccc;");
+                emailField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
             }
         });
 
-        // Password strength validation
         Label passwordStrengthLabel = new Label();
+        styleLabel(passwordStrengthLabel, false);
         passwordField.textProperty().addListener((obs, oldValue, newValue) -> {
             if (newValue.isEmpty()) {
                 passwordStrengthLabel.setText("");
             } else if (newValue.length() < 8) {
                 passwordStrengthLabel.setText("Password too short (min 8 chars)");
-                passwordStrengthLabel.setStyle("-fx-text-fill: red;");
+                passwordStrengthLabel.setStyle("-fx-text-fill: #FF6F61;");
             } else {
                 passwordStrengthLabel.setText("Password strength: Good");
-                passwordStrengthLabel.setStyle("-fx-text-fill: green;");
+                passwordStrengthLabel.setStyle("-fx-text-fill: #4CAF50;");
             }
         });
 
-        // Feedback message
         messageLabel = new Label();
-        messageLabel.setStyle("-fx-font-size: 12;");
+        messageLabel.setStyle("-fx-text-fill: #FF6F61; -fx-font-size: 12;");
 
         Button saveButton = new Button("Save Changes");
-        styleButton(saveButton);
+        stylePrimaryButton(saveButton);
         saveButton.setTooltip(new Tooltip("Save your profile changes"));
         saveButton.setOnAction(e -> saveProfile(fullNameField.getText(), emailField.getText(), passwordField.getText()));
 
         profileCard.getChildren().addAll(
                 profileImageView, uploadImageButton, titleLabel, roleLabel,
-                new Label("Full Name:"), fullNameField,
-                new Label("Email:"), emailField,
-                new Label("Password:"), passwordField, passwordStrengthLabel,
+                fullNameLabel, fullNameField,
+                emailLabel, emailField,
+                passwordLabel, passwordField, passwordStrengthLabel,
                 saveButton, messageLabel
         );
 
@@ -135,7 +139,6 @@ public class MyProfilePage extends VBox {
             }
         } catch (SQLException e) {
             messageLabel.setText("Error fetching details: " + e.getMessage());
-            messageLabel.setStyle("-fx-text-fill: red;");
         }
         return details;
     }
@@ -151,7 +154,6 @@ public class MyProfilePage extends VBox {
             }
         } catch (SQLException e) {
             messageLabel.setText("Error fetching profile picture: " + e.getMessage());
-            messageLabel.setStyle("-fx-text-fill: red;");
         }
         return null;
     }
@@ -168,24 +170,21 @@ public class MyProfilePage extends VBox {
             Image image = new Image(file.toURI().toString());
             profileImageView.setImage(image);
             messageLabel.setText("Profile picture updated. Click 'Save Changes' to persist.");
-            messageLabel.setStyle("-fx-text-fill: green;");
+            messageLabel.setStyle("-fx-text-fill: #4CAF50;");
         }
     }
 
     private void saveProfile(String fullName, String email, String password) {
         if (fullName.isEmpty() || email.isEmpty()) {
             messageLabel.setText("Full Name and Email are required.");
-            messageLabel.setStyle("-fx-text-fill: red;");
             return;
         }
         if (!email.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {
             messageLabel.setText("Invalid email format.");
-            messageLabel.setStyle("-fx-text-fill: red;");
             return;
         }
         if (!password.isEmpty() && password.length() < 8) {
             messageLabel.setText("Password must be at least 8 characters long.");
-            messageLabel.setStyle("-fx-text-fill: red;");
             return;
         }
 
@@ -203,10 +202,9 @@ public class MyProfilePage extends VBox {
             }
             stmt.executeUpdate();
             messageLabel.setText("Profile updated successfully!");
-            messageLabel.setStyle("-fx-text-fill: green;");
+            messageLabel.setStyle("-fx-text-fill: #4CAF50;");
         } catch (SQLException e) {
             messageLabel.setText("Error updating profile: " + e.getMessage());
-            messageLabel.setStyle("-fx-text-fill: red;");
         }
     }
 
@@ -226,10 +224,20 @@ public class MyProfilePage extends VBox {
         }
     }
 
-    private void styleButton(Button button) {
+    // Styling methods
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
+    }
+
+    private void styleTextField(TextField textField) {
+        textField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        textField.setPrefWidth(200);
+    }
+
+    private void stylePrimaryButton(Button button) {
         button.setPrefWidth(160);
-        button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #303f9f; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;"));
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 }

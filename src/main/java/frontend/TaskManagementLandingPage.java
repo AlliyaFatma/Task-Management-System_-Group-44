@@ -7,10 +7,10 @@ import javafx.scene.Scene;
 import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,13 +31,19 @@ public class TaskManagementLandingPage extends Application {
     @Override
     public void start(Stage primaryStage) {
         BorderPane root = new BorderPane();
-        root.setLeft(createSideMenu(primaryStage));
-        contentPane = new StackPane();
+        root.setStyle("-fx-background-color: #1C2526;"); // Dark background
 
+        // Sidebar
+        root.setLeft(createSideMenu(primaryStage));
+
+        // Main content area
+        contentPane = new StackPane();
+        contentPane.setStyle("-fx-background-color: #1C2526;");
+
+        // Notifications
         notificationPane = new VBox(5);
         notificationPane.setPadding(new Insets(10));
-        notificationPane.setStyle("-fx-background-color: #f0f0f0;");
-        updateNotifications();
+        notificationPane.setStyle("-fx-background-color: #283034; -fx-border-color: #3A4A4D; -fx-border-width: 1;");
 
         VBox mainContent = new VBox(10);
         mainContent.getChildren().addAll(notificationPane, contentPane);
@@ -60,7 +66,7 @@ public class TaskManagementLandingPage extends Application {
         String[] menuItems = {"Home", "My Tasks", "My Profile", "Logout"};
         for (String item : menuItems) {
             Button button = new Button(item);
-            styleButton(button);
+            styleMenuButton(button, item.equals("Home"));
             button.setOnAction(e -> {
                 if (item.equals("Logout")) {
                     primaryStage.close();
@@ -69,6 +75,12 @@ public class TaskManagementLandingPage extends Application {
                     new MyTasksPage(currentUsername).start(new Stage());
                 } else {
                     updateContent(item);
+                    // Update active menu item
+                    for (javafx.scene.Node node : sideMenu.getChildren()) {
+                        if (node instanceof Button) {
+                            styleMenuButton((Button) node, node == button);
+                        }
+                    }
                 }
             });
             sideMenu.getChildren().add(button);
@@ -84,10 +96,11 @@ public class TaskManagementLandingPage extends Application {
             homeContent.setPadding(new Insets(20));
 
             Label welcomeLabel = new Label("Welcome, " + currentUsername);
-            welcomeLabel.setFont(Font.font("Arial", 24));
+            styleLabel(welcomeLabel, true);
 
             // Fetch tasks for the current user
-            List<Task> tasks = TaskData.getTasksByUser(currentUsername);
+            List<Task> tasks;
+            tasks = TaskData.getTasksByUser(currentUsername);
             int total = tasks.size();
             int pending = (int) tasks.stream().filter(t -> !t.getStatus().equals("Completed")).count();
             int completed = total - pending;
@@ -100,10 +113,12 @@ public class TaskManagementLandingPage extends Application {
                     new Label("Pending: " + pending),
                     new Label("Completed: " + completed)
             );
+            statsBox.getChildren().forEach(node -> styleLabel((Label) node, false));
 
             // Pie Chart: Task Status Distribution
             PieChart statusChart = new PieChart();
             statusChart.setTitle("My Task Status Distribution");
+            styleChart(statusChart);
             Map<String, Long> statusCounts = tasks.stream()
                     .collect(Collectors.groupingBy(Task::getStatus, Collectors.counting()));
             statusCounts.forEach((status, count) ->
@@ -118,6 +133,7 @@ public class TaskManagementLandingPage extends Application {
             yAxis.setLabel("Number of Tasks");
             BarChart<String, Number> priorityChart = new BarChart<>(xAxis, yAxis);
             priorityChart.setTitle("My Task Priority Distribution");
+            styleChart(priorityChart);
             XYChart.Series<String, Number> series = new XYChart.Series<>();
             series.setName("Tasks");
             Map<String, Long> priorityCounts = tasks.stream()
@@ -142,21 +158,25 @@ public class TaskManagementLandingPage extends Application {
 
     private void updateNotifications() {
         notificationPane.getChildren().clear();
-        List<Notification> notifications = TaskData.getNotifications(currentUsername);
+        List<Notification> notifications;
+        notifications = TaskData.getNotifications(currentUsername);
+
         if (notifications.isEmpty()) {
-            notificationPane.getChildren().add(new Label("No new notifications."));
+            Label noNotificationsLabel = new Label("No new notifications.");
+            styleLabel(noNotificationsLabel, false);
+            notificationPane.getChildren().add(noNotificationsLabel);
             return;
         }
 
         for (Notification notification : notifications) {
             Label notificationLabel = new Label(String.format("%s (Received: %s)",
                     notification.getMessage(), notification.getCreatedAt()));
-            notificationLabel.setStyle("-fx-text-fill: #d32f2f;");
+            notificationLabel.setStyle("-fx-text-fill: #FF6F61;");
             notificationPane.getChildren().add(notificationLabel);
         }
 
         Button markAsReadButton = new Button("Mark as Read");
-        styleButton(markAsReadButton);
+        stylePrimaryButton(markAsReadButton);
         markAsReadButton.setOnAction(e -> {
             try {
                 TaskData.markNotificationsAsRead(currentUsername);
@@ -168,17 +188,42 @@ public class TaskManagementLandingPage extends Application {
         notificationPane.getChildren().add(markAsReadButton);
     }
 
-    private void styleButton(Button button) {
+    // Styling methods
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
+    }
+
+    private void styleMenuButton(Button button, boolean isActive) {
         button.setPrefWidth(160);
-        button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #303f9f; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3f51b5; -fx-text-fill: white;"));
+        button.setAlignment(Pos.CENTER_LEFT);
+        button.setStyle("-fx-background-color: " + (isActive ? "#3A4A4D" : "#283034") + "; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: transparent;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: transparent;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: " + (isActive ? "#3A4A4D" : "#283034") + "; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: transparent;"));
+    }
+
+    private void stylePrimaryButton(Button button) {
+        button.setPrefWidth(160);
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+    }
+
+    private void styleChart(Chart chart) {
+        chart.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';");
+        chart.lookupAll(".chart-title").forEach(node ->
+                node.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';"));
+        chart.lookupAll(".axis-label").forEach(node ->
+                node.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';"));
+        chart.lookupAll(".chart-legend").forEach(node ->
+                node.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF;"));
     }
 
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setContentText(message);
+        alert.getDialogPane().setStyle("-fx-background-color: #1C2526; -fx-font-family: 'Arial';");
+        alert.getDialogPane().lookup(".content").setStyle("-fx-text-fill: #FFFFFF;");
         alert.showAndWait();
     }
 

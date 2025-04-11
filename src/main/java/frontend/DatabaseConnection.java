@@ -3,7 +3,7 @@ package frontend;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-
+//Is abstracting database connection details
 public class DatabaseConnection {
     private static final String DB_URL = "jdbc:mysql://localhost:3306/TaskManagementDB";
     private static final String DB_USER = "root";

@@ -5,102 +5,97 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 public class TaskManagerLogin extends Application {
+    private TextField usernameField;
+    private PasswordField passwordField;
+    private ComboBox<String> userTypeComboBox;
+    private Label messageLabel;
+
     @Override
     public void start(Stage primaryStage) {
-        GridPane grid = new GridPane();
-        grid.setAlignment(Pos.CENTER);
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(25));
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: #1C2526;"); // Dark background
 
-        Label title = new Label("Login");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        grid.add(title, 0, 0, 2, 1);
+        Label titleLabel = new Label("Task Management System");
+        styleLabel(titleLabel, true);
 
-        Label usernameLabel = new Label("Username:");
-        TextField usernameField = new TextField();
-        grid.add(usernameLabel, 0, 1);
-        grid.add(usernameField, 1, 1);
+        usernameField = new TextField();
+        usernameField.setPromptText("Username");
+        styleTextField(usernameField);
 
-        Label passwordLabel = new Label("Password:");
-        PasswordField passwordField = new PasswordField();
-        grid.add(passwordLabel, 0, 2);
-        grid.add(passwordField, 1, 2);
+        passwordField = new PasswordField();
+        passwordField.setPromptText("Password");
+        styleTextField(passwordField);
 
-        Label roleLabel = new Label("Role:");
-        ComboBox<String> roleComboBox = new ComboBox<>();
-        roleComboBox.getItems().addAll("Team Member", "Project Manager");
-        roleComboBox.setValue("Team Member");
-        grid.add(roleLabel, 0, 3);
-        grid.add(roleComboBox, 1, 3);
+        userTypeComboBox = new ComboBox<>();
+        userTypeComboBox.getItems().addAll("Manager", "Team Member"); // Standardized role values
+        userTypeComboBox.setValue("Team Member");
+        styleComboBox(userTypeComboBox);
 
         Button loginButton = new Button("Login");
-        loginButton.setOnAction(e -> handleLogin(primaryStage, usernameField.getText(), passwordField.getText(), roleComboBox.getValue()));
-        grid.add(loginButton, 1, 4);
+        stylePrimaryButton(loginButton);
+        loginButton.setOnAction(e -> handleLogin(primaryStage));
 
         Button registerButton = new Button("Register");
-        registerButton.setOnAction(e -> {
-            primaryStage.close();
-            new TaskManagerRegister().start(new Stage());
-        });
-        grid.add(registerButton, 1, 5);
+        styleSecondaryButton(registerButton);
+        registerButton.setOnAction(e -> handleRegister());
 
-        Scene scene = new Scene(grid, 400, 300);
+        messageLabel = new Label();
+        messageLabel.setStyle("-fx-text-fill: #FF6F61;"); // Coral red for error messages
+
+        root.getChildren().addAll(titleLabel, usernameField, passwordField, userTypeComboBox, loginButton, registerButton, messageLabel);
+
+        Scene scene = new Scene(root, 400, 400);
+        primaryStage.setTitle("TMS - Login");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
 
-    private void handleLogin(Stage stage, String username, String password, String role) {
+    private void handleLogin(Stage stage) {
+        String username = usernameField.getText();
+        String password = passwordField.getText();
+
         if (username.isEmpty() || password.isEmpty()) {
-            showAlert("Error", "Username and password are required.");
+            messageLabel.setText("Please enter both username and password.");
             return;
         }
 
-        try (Connection conn = DatabaseConnection.getConnection()) {
-            String query = "SELECT password_hash, role FROM users WHERE username = ?";
-            PreparedStatement stmt = conn.prepareStatement(query);
+        try (java.sql.Connection conn = DatabaseConnection.getConnection()) {
+            String query = "SELECT role FROM users WHERE username = ? AND password_hash = ?";
+            java.sql.PreparedStatement stmt = conn.prepareStatement(query);
             stmt.setString(1, username);
-            ResultSet rs = stmt.executeQuery();
+            stmt.setString(2, hashPassword(password));
+            java.sql.ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                String storedHash = rs.getString("password_hash");
-                String inputHash = hashPassword(password);
-                String storedRole = rs.getString("role");
-
-                if (storedHash.equals(inputHash) && storedRole.equals(role)) {
-                    stage.close();
-                    if (role.equals("Project Manager")) {
-                        new TaskManagementSystem(username).start(new Stage());
-                    } else {
-                        new TaskManagementLandingPage(username).start(new Stage());
-                    }
+                String role = rs.getString("role");
+                stage.close();
+                if (role.equals("Manager")) {
+                    new TaskManagementSystem(username).start(new Stage());
                 } else {
-                    showAlert("Error", "Invalid username, password, or role.");
+                    new TaskManagementLandingPage(username).start(new Stage());
                 }
             } else {
-                showAlert("Error", "User not found.");
+                messageLabel.setText("Invalid username or password.");
             }
-        } catch (SQLException e) {
-            showAlert("Error", "Login failed: " + e.getMessage());
+        } catch (java.sql.SQLException e) {
+            messageLabel.setText("Database error: " + e.getMessage());
         }
+    }
+
+    private void handleRegister() {
+        // Launch the TaskManagerRegister form
+        new TaskManagerRegister().start(new Stage());
     }
 
     private String hashPassword(String password) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(password.getBytes());
             StringBuilder hexString = new StringBuilder();
             for (byte b : hash) {
@@ -109,16 +104,38 @@ public class TaskManagerLogin extends Application {
                 hexString.append(hex);
             }
             return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
+        } catch (java.security.NoSuchAlgorithmException e) {
             return password;
         }
     }
 
-    private void showAlert(String title, String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle(title);
-        alert.setContentText(message);
-        alert.showAndWait();
+    // Styling methods
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
+    }
+
+    private void styleTextField(TextField textField) {
+        textField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        textField.setPrefWidth(200);
+    }
+
+    private void styleComboBox(ComboBox<?> comboBox) {
+        comboBox.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        comboBox.setPrefWidth(200);
+    }
+
+    private void stylePrimaryButton(Button button) {
+        button.setPrefWidth(200);
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+    }
+
+    private void styleSecondaryButton(Button button) {
+        button.setPrefWidth(200);
+        button.setStyle("-fx-background-color: transparent; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: transparent; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     public static void main(String[] args) {

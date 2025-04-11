@@ -8,13 +8,12 @@ import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
 import javafx.stage.Stage;
-import javafx.scene.control.Tooltip;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 public class MyTasksPage extends Application {
@@ -33,33 +32,49 @@ public class MyTasksPage extends Application {
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
         content.setAlignment(Pos.CENTER);
+        content.setStyle("-fx-background-color: #1C2526;");
 
         Label titleLabel = new Label("My Tasks");
-        titleLabel.setFont(Font.font("Arial", 24));
+        styleLabel(titleLabel, true);
 
         HBox filterBox = new HBox(10);
+        filterBox.setAlignment(Pos.CENTER);
+        Label statusLabel = new Label("Status:");
+        styleLabel(statusLabel, false);
         statusFilter = new ComboBox<>();
         statusFilter.getItems().addAll("All", "To-Do", "In Progress", "Completed");
         statusFilter.setValue("All");
+        styleComboBox(statusFilter);
+
+        Label fromDateLabel = new Label("From Date:");
+        styleLabel(fromDateLabel, false);
         fromDateField = new TextField();
-        fromDateField.setPromptText("From (YYYY-MM-DD)");
+        fromDateField.setPromptText("YYYY-MM-DD");
+        styleTextField(fromDateField);
+
+        Label toDateLabel = new Label("To Date:");
+        styleLabel(toDateLabel, false);
         toDateField = new TextField();
-        toDateField.setPromptText("To (YYYY-MM-DD)");
+        toDateField.setPromptText("YYYY-MM-DD");
+        styleTextField(toDateField);
+
         Button filterButton = new Button("Filter");
-        styleButton(filterButton);
+        stylePrimaryButton(filterButton);
         filterButton.setOnAction(e -> displayTasks(statusFilter.getValue(), fromDateField.getText(), toDateField.getText()));
+
         Button clearButton = new Button("Clear");
-        styleButton(clearButton);
+        styleSecondaryButton(clearButton);
         clearButton.setOnAction(e -> {
             statusFilter.setValue("All");
             fromDateField.clear();
             toDateField.clear();
             displayTasks("All", "", "");
         });
+
         filterBox.getChildren().addAll(
-                new Label("Status:"), statusFilter,
-                new Label("From Date:"), fromDateField,
-                new Label("To Date:"), toDateField,
+                statusLabel, statusFilter,
+                fromDateLabel, fromDateField,
+                toDateLabel, toDateField,
                 filterButton, clearButton
         );
 
@@ -68,6 +83,7 @@ public class MyTasksPage extends Application {
         scrollPane.setContent(taskDisplay);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(400);
+        scrollPane.setStyle("-fx-background-color: #1C2526; -fx-border-color: #3A4A4D;");
 
         displayTasks("All", "", "");
         showTaskNotifications();
@@ -82,9 +98,13 @@ public class MyTasksPage extends Application {
 
     private void displayTasks(String statusFilter, String fromDate, String toDate) {
         taskDisplay.getChildren().clear();
-        List<Task> tasks = TaskData.getTasksByUser(currentUsername);
+        List<Task> tasks;
+        tasks = TaskData.getTasksByUser(currentUsername);
+
         if (tasks.isEmpty()) {
-            taskDisplay.getChildren().add(new Label("No tasks available."));
+            Label noTasksLabel = new Label("No tasks available.");
+            styleLabel(noTasksLabel, false);
+            taskDisplay.getChildren().add(noTasksLabel);
             return;
         }
 
@@ -108,46 +128,49 @@ public class MyTasksPage extends Application {
             if (matchesStatus && matchesDate) {
                 VBox taskCard = new VBox(5);
                 taskCard.setPadding(new Insets(10));
-                // Color-code based on priority
-                String cardColor = task.getPriority().equals("High") ? "#ffcccc" :
-                        task.getPriority().equals("Medium") ? "#fff4cc" : "#ccffcc";
-                taskCard.setStyle("-fx-background-color: " + cardColor + "; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-background-radius: 5;");
-                // Hover effect
-                taskCard.setOnMouseEntered(e -> taskCard.setStyle("-fx-background-color: " + cardColor + "; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-background-radius: 5; -fx-scale-x: 1.02; -fx-scale-y: 1.02;"));
-                taskCard.setOnMouseExited(e -> taskCard.setStyle("-fx-background-color: " + cardColor + "; -fx-border-color: #ccc; -fx-border-radius: 5; -fx-background-radius: 5;"));
+                String cardColor = task.getPriority().equals("High") ? "#FF6F61" :
+                        task.getPriority().equals("Medium") ? "#FFB347" : "#4CAF50";
+                taskCard.setStyle("-fx-background-color: #283034; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2;");
+                taskCard.setOnMouseEntered(e -> taskCard.setStyle("-fx-background-color: #3A4A4D; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2; -fx-scale-x: 1.02; -fx-scale-y: 1.02;"));
+                taskCard.setOnMouseExited(e -> taskCard.setStyle("-fx-background-color: #283034; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2;"));
 
                 HBox taskInfoBox = new HBox(5);
                 taskInfoBox.setAlignment(Pos.CENTER_LEFT);
-                // Add flame icon for High priority
                 if (task.getPriority().equals("High")) {
-                    ImageView flameIcon = new ImageView(new Image("file:flame_icon.png", 16, 16, true, true));
+                    ImageView flameIcon;
+                    try {
+                        flameIcon = new ImageView(new Image("file:flame_icon.png", 16, 16, true, true));
+                    } catch (Exception e) {
+                        flameIcon = new ImageView(); // Fallback if image is missing
+                    }
                     flameIcon.setVisible(true);
                     taskInfoBox.getChildren().add(flameIcon);
                 }
                 String deadline = task.getDeadline() != null ? task.getDeadline() : "N/A";
                 Label taskInfo = new Label(String.format("%s - %s (Priority: %s, Due: %s)",
                         task.getTitle(), task.getStatus(), task.getPriority(), deadline));
+                styleLabel(taskInfo, false);
                 taskInfoBox.getChildren().add(taskInfo);
 
                 if (deadline != null && !deadline.equals("N/A")) {
                     try {
                         LocalDate dueDate = LocalDate.parse(deadline, formatter);
                         LocalDate today = LocalDate.now();
-                        long daysUntilDue = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
+                        long daysUntilDue = ChronoUnit.DAYS.between(today, dueDate);
                         if (daysUntilDue < 0) {
-                            taskInfo.setStyle("-fx-text-fill: red;");
+                            taskInfo.setStyle("-fx-text-fill: #FF6F61;");
                         } else if (daysUntilDue <= 2) {
-                            taskInfo.setStyle("-fx-text-fill: orange;");
+                            taskInfo.setStyle("-fx-text-fill: #FFB347;");
                         }
                     } catch (Exception e) {
                         // Invalid date format, skip highlighting
                     }
                 }
 
-                // Progress bar based on the progress field
                 ProgressBar progressBar = new ProgressBar();
-                progressBar.setProgress(task.getProgress() / 100.0); // Progress is stored as 0-100
+                progressBar.setProgress(task.getProgress() / 100.0);
                 progressBar.setPrefWidth(200);
+                progressBar.setStyle("-fx-accent: #4CAF50;");
 
                 HBox buttonBox = new HBox(10);
                 Button updateButton = new Button("Update Status");
@@ -161,10 +184,10 @@ public class MyTasksPage extends Application {
                 markCompleteButton.setOnAction(e -> {
                     if (!task.getStatus().equals("Completed")) {
                         task.setStatus("Completed");
-                        task.setProgress(100); // Set progress to 100% when marking as completed
+                        task.setProgress(100);
                         try {
                             TaskData.updateTask(task, currentUsername);
-                            displayTasks(statusFilter, fromDate, toDate);
+                            displayTasks(String.valueOf(statusFilter.getClass()), fromDateField.getText(), toDateField.getText());
                         } catch (SQLException ex) {
                             showAlert("Error", "Failed to update task: " + ex.getMessage());
                         }
@@ -192,7 +215,9 @@ public class MyTasksPage extends Application {
     }
 
     private void showTaskNotifications() {
-        List<Task> tasks = TaskData.getTasksByUser(currentUsername);
+        List<Task> tasks;
+        tasks = TaskData.getTasksByUser(currentUsername);
+
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         LocalDate today = LocalDate.now();
         StringBuilder notificationMessage = new StringBuilder();
@@ -214,11 +239,7 @@ public class MyTasksPage extends Application {
         }
 
         if (notificationMessage.length() > 0) {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle("Task Reminders");
-            alert.setHeaderText("You have upcoming or overdue tasks!");
-            alert.setContentText(notificationMessage.toString());
-            alert.showAndWait();
+            showAlert("Task Reminders", notificationMessage.toString());
         }
     }
 
@@ -226,24 +247,31 @@ public class MyTasksPage extends Application {
         Stage dialog = new Stage();
         VBox pane = new VBox(10);
         pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: #1C2526;");
 
+        Label statusLabel = new Label("Update Status:");
+        styleLabel(statusLabel, false);
         ComboBox<String> statusBox = new ComboBox<>();
         statusBox.getItems().addAll("To-Do", "In Progress", "Completed");
         statusBox.setValue(task.getStatus());
+        styleComboBox(statusBox);
 
+        Label progressLabel = new Label("Set Progress:");
+        styleLabel(progressLabel, false);
         Slider progressSlider = new Slider(0, 100, task.getProgress());
         progressSlider.setShowTickLabels(true);
         progressSlider.setShowTickMarks(true);
         progressSlider.setMajorTickUnit(25);
         progressSlider.setMinorTickCount(5);
         progressSlider.setSnapToTicks(true);
-        Label progressLabel = new Label("Progress: " + (int) progressSlider.getValue() + "%");
+        Label progressValueLabel = new Label("Progress: " + (int) progressSlider.getValue() + "%");
+        styleLabel(progressValueLabel, false);
         progressSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
-            progressLabel.setText("Progress: " + newVal.intValue() + "%");
+            progressValueLabel.setText("Progress: " + newVal.intValue() + "%");
         });
 
         Button saveButton = new Button("Save");
-        styleButton(saveButton);
+        stylePrimaryButton(saveButton);
         saveButton.setOnAction(e -> {
             task.setStatus(statusBox.getValue());
             task.setProgress((int) progressSlider.getValue());
@@ -256,11 +284,7 @@ public class MyTasksPage extends Application {
             }
         });
 
-        pane.getChildren().addAll(
-                new Label("Update Status:"), statusBox,
-                new Label("Set Progress:"), progressSlider, progressLabel,
-                saveButton
-        );
+        pane.getChildren().addAll(statusLabel, statusBox, progressLabel, progressSlider, progressValueLabel, saveButton);
         dialog.setScene(new Scene(pane, 300, 200));
         dialog.show();
     }
@@ -269,17 +293,23 @@ public class MyTasksPage extends Application {
         Stage dialog = new Stage();
         VBox pane = new VBox(10);
         pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: #1C2526;");
 
-        TextArea remarkArea = new TextArea(task.getRemarks());
+        Label remarkLabel = new Label("Add/Update Remark:");
+        styleLabel(remarkLabel, false);
+        TextArea remarkArea = new TextArea(task.getRemarks() != null ? task.getRemarks() : "");
         remarkArea.setPromptText("Enter your remarks here");
         remarkArea.setPrefHeight(100);
+        styleTextArea(remarkArea);
 
         Button saveButton = new Button("Save");
-        styleButton(saveButton);
+        stylePrimaryButton(saveButton);
         saveButton.setOnAction(e -> {
-            task.setRemarks(remarkArea.getText());
+            String newRemark = remarkArea.getText();
+            task.setRemarks(newRemark);
             try {
                 TaskData.updateTask(task, currentUsername);
+                TaskData.logTaskAction(task.getId(), currentUsername, "Added/Updated remark: " + newRemark);
                 displayTasks(statusFilter.getValue(), fromDateField.getText(), toDateField.getText());
                 dialog.close();
                 showAlert("Success", "Remark added successfully.");
@@ -288,7 +318,7 @@ public class MyTasksPage extends Application {
             }
         });
 
-        pane.getChildren().addAll(new Label("Add/Update Remark:"), remarkArea, saveButton);
+        pane.getChildren().addAll(remarkLabel, remarkArea, saveButton);
         dialog.setScene(new Scene(pane, 300, 200));
         dialog.show();
     }
@@ -297,26 +327,35 @@ public class MyTasksPage extends Application {
         Stage dialog = new Stage();
         VBox pane = new VBox(10);
         pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: #1C2526;");
 
         Label titleLabel = new Label("History for Task: " + task.getTitle());
-        titleLabel.setFont(Font.font("Arial", 16));
+        styleLabel(titleLabel, true);
 
-        List<String> history = TaskData.getTaskHistory(task.getId());
+        List<String> history;
+        history = TaskData.getTaskHistory(task.getId());
+
         VBox historyBox = new VBox(5);
+        historyBox.setStyle("-fx-background-color: #283034; -fx-border-color: #3A4A4D; -fx-border-width: 1; -fx-border-radius: 5; -fx-background-radius: 5;");
         if (history.isEmpty()) {
-            historyBox.getChildren().add(new Label("No history available."));
+            Label noHistoryLabel = new Label("No history available.");
+            styleLabel(noHistoryLabel, false);
+            historyBox.getChildren().add(noHistoryLabel);
         } else {
             for (String entry : history) {
-                historyBox.getChildren().add(new Label(entry));
+                Label historyLabel = new Label(entry);
+                styleLabel(historyLabel, false);
+                historyBox.getChildren().add(historyLabel);
             }
         }
 
         ScrollPane scrollPane = new ScrollPane(historyBox);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(200);
+        scrollPane.setStyle("-fx-background-color: #1C2526; -fx-border-color: #3A4A4D;");
 
         Button closeButton = new Button("Close");
-        styleButton(closeButton);
+        stylePrimaryButton(closeButton);
         closeButton.setOnAction(e -> dialog.close());
 
         pane.getChildren().addAll(titleLabel, scrollPane, closeButton);
@@ -325,24 +364,52 @@ public class MyTasksPage extends Application {
         dialog.show();
     }
 
-    private void styleButton(Button button) {
+    // Styling methods
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
+    }
+
+    private void styleTextField(TextField textField) {
+        textField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        textField.setPrefWidth(120);
+    }
+
+    private void styleTextArea(TextArea textArea) {
+        textArea.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+    }
+
+    private void styleComboBox(ComboBox<?> comboBox) {
+        comboBox.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        comboBox.setPrefWidth(120);
+    }
+
+    private void stylePrimaryButton(Button button) {
         button.setPrefWidth(100);
-        button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #45a049; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;"));
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+    }
+
+    private void styleSecondaryButton(Button button) {
+        button.setPrefWidth(100);
+        button.setStyle("-fx-background-color: transparent; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: transparent; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     private void styleSmallButton(Button button) {
         button.setPrefWidth(100);
-        button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #1976D2; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;"));
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setContentText(message);
+        alert.getDialogPane().setStyle("-fx-background-color: #1C2526; -fx-font-family: 'Arial';");
+        alert.getDialogPane().lookup(".content").setStyle("-fx-text-fill: #FFFFFF;");
         alert.showAndWait();
     }
 

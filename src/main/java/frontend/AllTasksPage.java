@@ -6,26 +6,17 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
 import javafx.stage.Stage;
 
 import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class AllTasksPage extends Application {
-    private String currentUserRole;
     private String currentUsername;
     private VBox taskDisplay;
-    private ComboBox<String> statusFilter;
-    private ComboBox<String> priorityFilter;
-    private TextField fromDateField;
-    private TextField toDateField;
 
-    public AllTasksPage(String userRole, String username) {
-        this.currentUserRole = userRole;
-        this.currentUsername = username != null ? username : "DefaultManager"; // Fallback to avoid null
+    public AllTasksPage(String username) {
+        this.currentUsername = username;
     }
 
     @Override
@@ -33,54 +24,25 @@ public class AllTasksPage extends Application {
         VBox content = new VBox(20);
         content.setPadding(new Insets(20));
         content.setAlignment(Pos.CENTER);
+        content.setStyle("-fx-background-color: #1C2526;");
 
         Label titleLabel = new Label("All Tasks");
-        titleLabel.setFont(Font.font("Arial", 24));
+        styleLabel(titleLabel, true);
 
-        HBox filterBox = new HBox(10);
-        statusFilter = new ComboBox<>();
-        statusFilter.getItems().addAll("All", "To-Do", "In Progress", "Completed");
-        statusFilter.setValue("All");
-        priorityFilter = new ComboBox<>();
-        priorityFilter.getItems().addAll("All", "Low", "Medium", "High");
-        priorityFilter.setValue("All");
-        fromDateField = new TextField();
-        fromDateField.setPromptText("From (YYYY-MM-DD)");
-        toDateField = new TextField();
-        toDateField.setPromptText("To (YYYY-MM-DD)");
-        Button filterButton = new Button("Filter");
-        styleButton(filterButton);
-        filterButton.setOnAction(e -> displayTasks(statusFilter.getValue(), priorityFilter.getValue(), fromDateField.getText(), toDateField.getText()));
-        Button clearButton = new Button("Clear");
-        styleButton(clearButton);
-        clearButton.setOnAction(e -> {
-            statusFilter.setValue("All");
-            priorityFilter.setValue("All");
-            fromDateField.clear();
-            toDateField.clear();
-            displayTasks("All", "All", "", "");
-        });
-        filterBox.getChildren().addAll(
-                new Label("Status:"), statusFilter,
-                new Label("Priority:"), priorityFilter,
-                new Label("From Date:"), fromDateField,
-                new Label("To Date:"), toDateField,
-                filterButton, clearButton
-        );
+        Button addTaskButton = new Button("Add New Task");
+        stylePrimaryButton(addTaskButton);
+        addTaskButton.setOnAction(e -> showAddTaskDialog());
 
         ScrollPane scrollPane = new ScrollPane();
         taskDisplay = new VBox(10);
         scrollPane.setContent(taskDisplay);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefHeight(400);
+        scrollPane.setStyle("-fx-background-color: #1C2526; -fx-border-color: #3A4A4D;");
 
-        displayTasks("All", "All", "", "");
-        showTaskNotifications();
+        displayTasks();
 
-        Button createButton = new Button("Create New Task");
-        styleButton(createButton);
-        createButton.setOnAction(e -> showCreateTaskDialog());
-        content.getChildren().addAll(titleLabel, filterBox, scrollPane, createButton);
+        content.getChildren().addAll(titleLabel, addTaskButton, scrollPane);
 
         Scene scene = new Scene(content, 800, 600);
         primaryStage.setTitle("TMS - All Tasks");
@@ -88,161 +50,126 @@ public class AllTasksPage extends Application {
         primaryStage.show();
     }
 
-    private void displayTasks(String statusFilter, String priorityFilter, String fromDate, String toDate) {
+    private void displayTasks() {
         taskDisplay.getChildren().clear();
-        List<Task> tasks = TaskData.getAllTasks();
+        List<Task> tasks;
+        tasks = TaskData.getAllTasks();
+
         if (tasks.isEmpty()) {
-            taskDisplay.getChildren().add(new Label("No tasks available."));
+            Label noTasksLabel = new Label("No tasks available.");
+            styleLabel(noTasksLabel, false);
+            taskDisplay.getChildren().add(noTasksLabel);
             return;
         }
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        LocalDate from = fromDate.isEmpty() ? null : LocalDate.parse(fromDate, formatter);
-        LocalDate to = toDate.isEmpty() ? null : LocalDate.parse(toDate, formatter);
-
         for (Task task : tasks) {
-            boolean matchesStatus = statusFilter.equals("All") || task.getStatus().equals(statusFilter);
-            boolean matchesPriority = priorityFilter.equals("All") || task.getPriority().equals(priorityFilter);
-            boolean matchesDate = true;
-            if (task.getDeadline() != null && !task.getDeadline().isEmpty()) {
+            VBox taskCard = new VBox(5);
+            taskCard.setPadding(new Insets(10));
+            String cardColor = task.getPriority().equals("High") ? "#FF6F61" :
+                    task.getPriority().equals("Medium") ? "#FFB347" : "#4CAF50";
+            taskCard.setStyle("-fx-background-color: #283034; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2;");
+            taskCard.setOnMouseEntered(e -> taskCard.setStyle("-fx-background-color: #3A4A4D; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2; -fx-scale-x: 1.02; -fx-scale-y: 1.02;"));
+            taskCard.setOnMouseExited(e -> taskCard.setStyle("-fx-background-color: #283034; -fx-border-color: " + cardColor + "; -fx-border-radius: 5; -fx-background-radius: 5; -fx-border-width: 2;"));
+
+            String deadline = task.getDeadline() != null ? task.getDeadline() : "N/A";
+            Label taskInfo = new Label(String.format("%s - %s (Priority: %s, Due: %s, Assigned to: %s)",
+                    task.getTitle(), task.getStatus(), task.getPriority(), deadline, task.getAssignedTo()));
+            styleLabel(taskInfo, false);
+
+            ProgressBar progressBar = new ProgressBar();
+            progressBar.setProgress(task.getProgress() / 100.0);
+            progressBar.setPrefWidth(200);
+            progressBar.setStyle("-fx-accent: #4CAF50;");
+
+            HBox buttonBox = new HBox(10);
+            Button editButton = new Button("Edit");
+            styleSmallButton(editButton);
+            editButton.setOnAction(e -> showEditTaskDialog(task));
+
+            Button deleteButton = new Button("Delete");
+            styleSmallButton(deleteButton);
+            deleteButton.setOnAction(e -> {
                 try {
-                    LocalDate deadline = LocalDate.parse(task.getDeadline(), formatter);
-                    if (from != null && deadline.isBefore(from)) matchesDate = false;
-                    if (to != null && deadline.isAfter(to)) matchesDate = false;
-                } catch (Exception e) {
-                    matchesDate = false;
+                    TaskData.deleteTask(task.getId(), currentUsername);
+                    displayTasks();
+                } catch (SQLException ex) {
+                    showAlert("Error", "Failed to delete task: " + ex.getMessage());
                 }
-            }
+            });
 
-            if (matchesStatus && matchesPriority && matchesDate) {
-                HBox taskBox = new HBox(10);
-                taskBox.setPadding(new Insets(10));
-                taskBox.setStyle("-fx-border-color: #ccc;");
-
-                String deadline = task.getDeadline() != null ? task.getDeadline() : "N/A";
-                String assignedTo = task.getAssignedTo() != null ? task.getAssignedTo() : "Unassigned";
-                Label taskInfo = new Label(String.format("%s - %s (Priority: %s, Due: %s, Assigned: %s)",
-                        task.getTitle(), task.getStatus(), task.getPriority(), deadline, assignedTo));
-
-                if (deadline != null && !deadline.equals("N/A")) {
-                    try {
-                        LocalDate dueDate = LocalDate.parse(deadline, formatter);
-                        LocalDate today = LocalDate.now();
-                        long daysUntilDue = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
-                        if (daysUntilDue < 0) {
-                            taskInfo.setStyle("-fx-text-fill: red;");
-                        } else if (daysUntilDue <= 2) {
-                            taskInfo.setStyle("-fx-text-fill: orange;");
-                        }
-                    } catch (Exception e) {
-                        // Invalid date format, skip highlighting
-                    }
-                }
-
-                Button editButton = new Button("Edit");
-                styleSmallButton(editButton);
-                editButton.setOnAction(e -> showEditTaskDialog(task));
-                Button deleteButton = new Button("Delete");
-                styleSmallButton(deleteButton);
-                deleteButton.setOnAction(e -> {
-                    try {
-                        TaskData.deleteTask(task.getId(), currentUsername);
-                        displayTasks(statusFilter, priorityFilter, fromDate, toDate);
-                        showAlert("Success", "Task deleted successfully.");
-                    } catch (SQLException ex) {
-                        showAlert("Error", "Failed to delete task: " + ex.getMessage());
-                    }
-                });
-                Button historyButton = new Button("View History");
-                styleSmallButton(historyButton);
-                historyButton.setOnAction(e -> showTaskHistoryDialog(task));
-
-                taskBox.getChildren().addAll(taskInfo, editButton, deleteButton, historyButton);
-                taskDisplay.getChildren().add(taskBox);
-            }
+            buttonBox.getChildren().addAll(editButton, deleteButton);
+            taskCard.getChildren().addAll(taskInfo, progressBar, buttonBox);
+            taskDisplay.getChildren().add(taskCard);
         }
     }
 
-    private void showTaskNotifications() {
-        List<Task> tasks = TaskData.getAllTasks();
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        LocalDate today = LocalDate.now();
-        StringBuilder notificationMessage = new StringBuilder();
-
-        for (Task task : tasks) {
-            if (task.getDeadline() != null && !task.getDeadline().isEmpty()) {
-                try {
-                    LocalDate dueDate = LocalDate.parse(task.getDeadline(), formatter);
-                    long daysUntilDue = java.time.temporal.ChronoUnit.DAYS.between(today, dueDate);
-                    if (daysUntilDue < 0) {
-                        notificationMessage.append(String.format("Task '%s' is overdue (Due: %s)!\n", task.getTitle(), task.getDeadline()));
-                    } else if (daysUntilDue <= 2) {
-                        notificationMessage.append(String.format("Task '%s' is due soon (Due: %s)!\n", task.getTitle(), task.getDeadline()));
-                    }
-                } catch (Exception e) {
-                    // Invalid date format, skip
-                }
-            }
-        }
-
-        if (notificationMessage.length() > 0) {
-            Alert alert = new Alert(Alert.AlertType.WARNING);
-            alert.setTitle("Task Reminders");
-            alert.setHeaderText("There are upcoming or overdue tasks!");
-            alert.setContentText(notificationMessage.toString());
-            alert.showAndWait();
-        }
-    }
-
-    private void showCreateTaskDialog() {
+    private void showAddTaskDialog() {
         Stage dialog = new Stage();
         VBox pane = new VBox(10);
         pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: #1C2526;");
+
+        Label titleLabel = new Label("Add New Task");
+        styleLabel(titleLabel, true);
 
         TextField titleField = new TextField();
-        titleField.setPromptText("Enter task title");
-        TextArea descArea = new TextArea();
-        descArea.setPromptText("Enter task description");
+        titleField.setPromptText("Task Title");
+        styleTextField(titleField);
+
+        TextArea descriptionArea = new TextArea();
+        descriptionArea.setPromptText("Task Description");
+        descriptionArea.setPrefHeight(100);
+        styleTextArea(descriptionArea);
+
         ComboBox<String> statusBox = new ComboBox<>();
         statusBox.getItems().addAll("To-Do", "In Progress", "Completed");
         statusBox.setValue("To-Do");
-        ComboBox<String> priorityBox = new ComboBox<>();
-        priorityBox.getItems().addAll("Low", "Medium", "High");
-        priorityBox.setValue("Medium");
-        TextField deadlineField = new TextField();
-        deadlineField.setPromptText("YYYY-MM-DD");
-        TextField assignedToField = new TextField();
-        assignedToField.setPromptText("Enter username");
-        TextArea remarksArea = new TextArea();
-        remarksArea.setPromptText("Enter remarks");
+        styleComboBox(statusBox);
 
-        Button createButton = new Button("Create");
-        styleButton(createButton);
-        createButton.setOnAction(e -> {
-            if (titleField.getText().isEmpty() || assignedToField.getText().isEmpty()) {
-                showAlert("Error", "Title and Assigned To fields are required.");
-                return;
-            }
-            Task task = new Task(0, titleField.getText(), descArea.getText(), statusBox.getValue(),
-                    priorityBox.getValue(), deadlineField.getText(), assignedToField.getText());
-            task.setRemarks(remarksArea.getText());
+        ComboBox<String> priorityBox = new ComboBox<>();
+        priorityBox.getItems().addAll("High", "Medium", "Low");
+        priorityBox.setValue("Medium");
+        styleComboBox(priorityBox);
+
+        TextField deadlineField = new TextField();
+        deadlineField.setPromptText("Deadline (YYYY-MM-DD)");
+        styleTextField(deadlineField);
+
+        TextField assignedToField = new TextField();
+        assignedToField.setPromptText("Assigned To (Username)");
+        styleTextField(assignedToField);
+
+        Slider progressSlider = new Slider(0, 100, 0);
+        progressSlider.setShowTickLabels(true);
+        progressSlider.setShowTickMarks(true);
+        progressSlider.setMajorTickUnit(25);
+        progressSlider.setMinorTickCount(5);
+        progressSlider.setSnapToTicks(true);
+        Label progressValueLabel = new Label("Progress: " + (int) progressSlider.getValue() + "%");
+        styleLabel(progressValueLabel, false);
+        progressSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            progressValueLabel.setText("Progress: " + newVal.intValue() + "%");
+        });
+
+        Button saveButton = new Button("Save");
+        stylePrimaryButton(saveButton);
+        saveButton.setOnAction(e -> {
+            Task task = new Task(0, titleField.getText(), descriptionArea.getText(),
+                    statusBox.getValue(), priorityBox.getValue(), deadlineField.getText(),
+                    assignedToField.getText());
+            task.setProgress((int) progressSlider.getValue());
             try {
                 TaskData.addTask(task, currentUsername);
-                displayTasks(statusFilter.getValue(), priorityFilter.getValue(), fromDateField.getText(), toDateField.getText());
+                displayTasks();
                 dialog.close();
-                showAlert("Success", "Task created successfully.");
             } catch (SQLException ex) {
-                showAlert("Error", "Failed to create task: " + ex.getMessage());
+                showAlert("Error", "Failed to add task: " + ex.getMessage());
             }
         });
 
-        pane.getChildren().addAll(
-                new Label("Title:"), titleField, new Label("Description:"), descArea,
-                new Label("Status:"), statusBox, new Label("Priority:"), priorityBox,
-                new Label("Deadline:"), deadlineField, new Label("Assigned To:"), assignedToField,
-                new Label("Remarks:"), remarksArea, createButton
-        );
-        dialog.setScene(new Scene(pane, 300, 500));
+        pane.getChildren().addAll(titleLabel, titleField, descriptionArea, statusBox, priorityBox,
+                deadlineField, assignedToField, progressSlider, progressValueLabel, saveButton);
+        dialog.setScene(new Scene(pane, 400, 500));
         dialog.show();
     }
 
@@ -250,99 +177,110 @@ public class AllTasksPage extends Application {
         Stage dialog = new Stage();
         VBox pane = new VBox(10);
         pane.setPadding(new Insets(10));
+        pane.setStyle("-fx-background-color: #1C2526;");
+
+        Label titleLabel = new Label("Edit Task");
+        styleLabel(titleLabel, true);
 
         TextField titleField = new TextField(task.getTitle());
-        TextArea descArea = new TextArea(task.getDescription());
+        styleTextField(titleField);
+
+        TextArea descriptionArea = new TextArea(task.getDescription());
+        descriptionArea.setPrefHeight(100);
+        styleTextArea(descriptionArea);
+
         ComboBox<String> statusBox = new ComboBox<>();
         statusBox.getItems().addAll("To-Do", "In Progress", "Completed");
         statusBox.setValue(task.getStatus());
+        styleComboBox(statusBox);
+
         ComboBox<String> priorityBox = new ComboBox<>();
-        priorityBox.getItems().addAll("Low", "Medium", "High");
+        priorityBox.getItems().addAll("High", "Medium", "Low");
         priorityBox.setValue(task.getPriority());
+        styleComboBox(priorityBox);
+
         TextField deadlineField = new TextField(task.getDeadline());
+        styleTextField(deadlineField);
+
         TextField assignedToField = new TextField(task.getAssignedTo());
-        TextArea remarksArea = new TextArea(task.getRemarks());
+        styleTextField(assignedToField);
+
+        Slider progressSlider = new Slider(0, 100, task.getProgress());
+        progressSlider.setShowTickLabels(true);
+        progressSlider.setShowTickMarks(true);
+        progressSlider.setMajorTickUnit(25);
+        progressSlider.setMinorTickCount(5);
+        progressSlider.setSnapToTicks(true);
+        Label progressValueLabel = new Label("Progress: " + (int) progressSlider.getValue() + "%");
+        styleLabel(progressValueLabel, false);
+        progressSlider.valueProperty().addListener((obs, oldVal, newVal) -> {
+            progressValueLabel.setText("Progress: " + newVal.intValue() + "%");
+        });
 
         Button saveButton = new Button("Save");
-        styleButton(saveButton);
+        stylePrimaryButton(saveButton);
         saveButton.setOnAction(e -> {
-            if (titleField.getText().isEmpty() || assignedToField.getText().isEmpty()) {
-                showAlert("Error", "Title and Assigned To fields are required.");
-                return;
-            }
-            Task updatedTask = new Task(task.getId(), titleField.getText(), descArea.getText(), statusBox.getValue(),
-                    priorityBox.getValue(), deadlineField.getText(), assignedToField.getText());
-            updatedTask.setRemarks(remarksArea.getText());
+            task.setTitle(titleField.getText());
+            task.setDescription(descriptionArea.getText());
+            task.setStatus(statusBox.getValue());
+            task.setPriority(priorityBox.getValue());
+            task.setDeadline(deadlineField.getText());
+            task.setAssignedTo(assignedToField.getText());
+            task.setProgress((int) progressSlider.getValue());
             try {
-                TaskData.updateTask(updatedTask, currentUsername);
-                displayTasks(statusFilter.getValue(), priorityFilter.getValue(), fromDateField.getText(), toDateField.getText());
+                TaskData.updateTask(task, currentUsername);
+                displayTasks();
                 dialog.close();
-                showAlert("Success", "Task updated successfully.");
             } catch (SQLException ex) {
                 showAlert("Error", "Failed to update task: " + ex.getMessage());
             }
         });
 
-        pane.getChildren().addAll(
-                new Label("Title:"), titleField, new Label("Description:"), descArea,
-                new Label("Status:"), statusBox, new Label("Priority:"), priorityBox,
-                new Label("Deadline:"), deadlineField, new Label("Assigned To:"), assignedToField,
-                new Label("Remarks:"), remarksArea, saveButton
-        );
-        dialog.setScene(new Scene(pane, 300, 500));
+        pane.getChildren().addAll(titleLabel, titleField, descriptionArea, statusBox, priorityBox,
+                deadlineField, assignedToField, progressSlider, progressValueLabel, saveButton);
+        dialog.setScene(new Scene(pane, 400, 500));
         dialog.show();
     }
 
-    private void showTaskHistoryDialog(Task task) {
-        Stage dialog = new Stage();
-        VBox pane = new VBox(10);
-        pane.setPadding(new Insets(10));
-
-        Label titleLabel = new Label("History for Task: " + task.getTitle());
-        titleLabel.setFont(Font.font("Arial", 16));
-
-        List<String> history = TaskData.getTaskHistory(task.getId());
-        VBox historyBox = new VBox(5);
-        if (history.isEmpty()) {
-            historyBox.getChildren().add(new Label("No history available."));
-        } else {
-            for (String entry : history) {
-                historyBox.getChildren().add(new Label(entry));
-            }
-        }
-
-        ScrollPane scrollPane = new ScrollPane(historyBox);
-        scrollPane.setFitToWidth(true);
-        scrollPane.setPrefHeight(200);
-
-        Button closeButton = new Button("Close");
-        styleButton(closeButton);
-        closeButton.setOnAction(e -> dialog.close());
-
-        pane.getChildren().addAll(titleLabel, scrollPane, closeButton);
-        dialog.setScene(new Scene(pane, 400, 300));
-        dialog.setTitle("Task History");
-        dialog.show();
+    // Styling methods
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
     }
 
-    private void styleButton(Button button) {
+    private void styleTextField(TextField textField) {
+        textField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        textField.setPrefWidth(200);
+    }
+
+    private void styleTextArea(TextArea textArea) {
+        textArea.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+    }
+
+    private void styleComboBox(ComboBox<?> comboBox) {
+        comboBox.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        comboBox.setPrefWidth(200);
+    }
+
+    private void stylePrimaryButton(Button button) {
         button.setPrefWidth(100);
-        button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #45a049; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;"));
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     private void styleSmallButton(Button button) {
-        button.setPrefWidth(80);
-        button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;");
-        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #1976D2; -fx-text-fill: white;"));
-        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #2196F3; -fx-text-fill: white;"));
+        button.setPrefWidth(100);
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     private void showAlert(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setContentText(message);
+        alert.getDialogPane().setStyle("-fx-background-color: #1C2526; -fx-font-family: 'Arial';");
+        alert.getDialogPane().lookup(".content").setStyle("-fx-text-fill: #FFFFFF;");
         alert.showAndWait();
     }
 

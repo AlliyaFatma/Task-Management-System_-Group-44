@@ -10,7 +10,8 @@ public class Task {
     private String assignedTo;
     private String remarks;
     private int progress; // New field for task progress (0-100)
-
+    //Encapsulationn:
+    //Constructorr overloading (Polymorphism)
     public Task(int id, String title, String description, String status, String priority, String deadline, String assignedTo) {
         this.id = id;
         this.title = title;
@@ -23,7 +24,7 @@ public class Task {
         this.progress = 0; // Default progress
     }
 
-    // Getters and setters
+    // Public Getters and seters methods
     public int getId() {
         return id;
     }

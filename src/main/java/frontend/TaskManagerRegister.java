@@ -6,8 +6,6 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.Stage;
 
 import java.security.MessageDigest;
@@ -19,49 +17,51 @@ import java.sql.SQLException;
 public class TaskManagerRegister extends Application {
     @Override
     public void start(Stage primaryStage) {
-        GridPane grid = new GridPane();
-        grid.setAlignment(Pos.CENTER);
-        grid.setHgap(10);
-        grid.setVgap(10);
-        grid.setPadding(new Insets(25));
+        VBox root = new VBox(15);
+        root.setPadding(new Insets(20));
+        root.setAlignment(Pos.CENTER);
+        root.setStyle("-fx-background-color: #1C2526;"); // Dark background
 
         Label title = new Label("Register");
-        title.setFont(Font.font("Arial", FontWeight.BOLD, 24));
-        grid.add(title, 0, 0, 2, 1);
+        styleLabel(title, true);
 
         Label nameLabel = new Label("Full Name:");
+        styleLabel(nameLabel, false);
         TextField nameField = new TextField();
-        grid.add(nameLabel, 0, 1);
-        grid.add(nameField, 1, 1);
+        styleTextField(nameField);
 
         Label emailLabel = new Label("Email:");
+        styleLabel(emailLabel, false);
         TextField emailField = new TextField();
-        grid.add(emailLabel, 0, 2);
-        grid.add(emailField, 1, 2);
+        styleTextField(emailField);
 
         Label usernameLabel = new Label("Username:");
+        styleLabel(usernameLabel, false);
         TextField usernameField = new TextField();
-        grid.add(usernameLabel, 0, 3);
-        grid.add(usernameField, 1, 3);
+        styleTextField(usernameField);
 
         Label passwordLabel = new Label("Password:");
+        styleLabel(passwordLabel, false);
         PasswordField passwordField = new PasswordField();
-        grid.add(passwordLabel, 0, 4);
-        grid.add(passwordField, 1, 4);
+        styleTextField(passwordField);
 
         Label roleLabel = new Label("Role:");
+        styleLabel(roleLabel, false);
         ComboBox<String> roleComboBox = new ComboBox<>();
-        roleComboBox.getItems().addAll("Team Member", "Project Manager");
+        roleComboBox.getItems().addAll("Manager", "Team Member"); // Standardized role values
         roleComboBox.setValue("Team Member");
-        grid.add(roleLabel, 0, 5);
-        grid.add(roleComboBox, 1, 5);
+        styleComboBox(roleComboBox);
 
         Button registerButton = new Button("Register");
+        stylePrimaryButton(registerButton);
         registerButton.setOnAction(e -> handleRegister(primaryStage, nameField.getText(), emailField.getText(),
                 usernameField.getText(), passwordField.getText(), roleComboBox.getValue()));
-        grid.add(registerButton, 1, 6);
 
-        Scene scene = new Scene(grid, 400, 300);
+        root.getChildren().addAll(title, nameLabel, nameField, emailLabel, emailField, usernameLabel, usernameField,
+                passwordLabel, passwordField, roleLabel, roleComboBox, registerButton);
+
+        Scene scene = new Scene(root, 400, 500);
+        primaryStage.setTitle("TMS - Register");
         primaryStage.setScene(scene);
         primaryStage.show();
     }
@@ -109,7 +109,31 @@ public class TaskManagerRegister extends Application {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setContentText(message);
+        alert.getDialogPane().setStyle("-fx-background-color: #1C2526; -fx-font-family: 'Arial';");
+        alert.getDialogPane().lookup(".content").setStyle("-fx-text-fill: #FFFFFF;");
         alert.showAndWait();
+    }
+
+    // Styling methods (copied from TaskManagerLogin.java for consistency)
+    private void styleLabel(Label label, boolean isTitle) {
+        label.setStyle("-fx-text-fill: #FFFFFF; -fx-font-family: 'Arial';" + (isTitle ? "-fx-font-size: 24;" : "-fx-font-size: 14;"));
+    }
+
+    private void styleTextField(TextField textField) {
+        textField.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-prompt-text-fill: #A0A0A0; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        textField.setPrefWidth(200);
+    }
+
+    private void styleComboBox(ComboBox<?> comboBox) {
+        comboBox.setStyle("-fx-background-color: #283034; -fx-text-fill: #FFFFFF; -fx-border-color: #3A4A4D; -fx-border-radius: 5; -fx-background-radius: 5;");
+        comboBox.setPrefWidth(200);
+    }
+
+    private void stylePrimaryButton(Button button) {
+        button.setPrefWidth(200);
+        button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;");
+        button.setOnMouseEntered(e -> button.setStyle("-fx-background-color: #4A5A5D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
+        button.setOnMouseExited(e -> button.setStyle("-fx-background-color: #3A4A4D; -fx-text-fill: #FFFFFF; -fx-font-family: 'Arial'; -fx-border-radius: 5; -fx-background-radius: 5;"));
     }
 
     public static void main(String[] args) {

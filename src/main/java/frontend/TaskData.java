@@ -134,7 +134,7 @@ public class TaskData {
             while (rs.next()) {
                 history.add(String.format("%s - %s: %s",
                         rs.getTimestamp("created_at"),
-                        rs.getString("user"),
+                        rs.getString("username"),
                         rs.getString("action")));
             }
         } catch (SQLException e) {
@@ -146,7 +146,7 @@ public class TaskData {
     // Log a task action (e.g., creation, update, deletion)
     public static void logTaskAction(int taskId, String user, String action) throws SQLException {
         try (Connection conn = DatabaseConnection.getConnection()) {
-            String query = "INSERT INTO task_logs (task_id, user, action) VALUES (?, ?, ?)";
+            String query = "INSERT INTO task_logs (task_id, username, action) VALUES (?, ?, ?)";
             PreparedStatement stmt = conn.prepareStatement(query);
             stmt.setInt(1, taskId);
             stmt.setString(2, user);
